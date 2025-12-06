@@ -1,6 +1,12 @@
 export const maxDuration = 30
 
-const GEMINI_API_KEY = "AIzaSyAfxr1cQeP4ZqiAY1tUb8iOo0ZThuHxhUg"
+// Ambil kunci dari Variabel Lingkungan Vercel yang sudah diatur
+const GEMINI_API_KEY = process.env.NEXT_PUBLIC_API_KEY;
+
+if (!GEMINI_API_KEY) {
+  // Ini akan memicu error di log Vercel jika kunci tidak ditemukan
+  throw new Error("GEMINI_API_KEY is not set (Check NEXT_PUBLIC_API_KEY in Vercel)");
+}
 
 const systemPrompt = `Kamu adalah KOPI AI, asisten virtual cerdas dari KOPILOKA - marketplace kopi Indonesia terbesar.
 
