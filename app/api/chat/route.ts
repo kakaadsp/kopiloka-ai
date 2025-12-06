@@ -1,7 +1,7 @@
 export const maxDuration = 30
 
-// Ambil kunci dari Variabel Lingkungan Vercel yang sudah diatur
-const GEMINI_API_KEY = process.env.NEXT_PUBLIC_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY; 
+
 
 if (!GEMINI_API_KEY) {
   // Ini akan memicu error di log Vercel jika kunci tidak ditemukan
