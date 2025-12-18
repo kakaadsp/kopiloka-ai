@@ -10,10 +10,7 @@ export async function POST(req: Request) {
     const apiKey = process.env.GROQ_API_KEY;
 
     if (!apiKey) {
-      return Response.json(
-        { error: "GROQ_API_KEY tidak ditemukan." },
-        { status: 500 }
-      );
+      return Response.json({ error: "No API Key" }, { status: 500 });
     }
 
     const groq = createOpenAI({
@@ -21,31 +18,39 @@ export async function POST(req: Request) {
       apiKey: apiKey,
     });
 
-    // --- BAGIAN PENTING: PEMBERSIHAN PESAN ---
-    // Kita buang field 'id', 'createdAt', dll. Ambil cuma role & content.
-    // Ini solusi untuk error "unsupported content fields".
+    // 1. PEMBERSIHAN PESAN (Wajib buat Groq)
+    // Supaya dia ingat obrolan sebelumnya (Context Aware)
     const cleanMessages = messages.map((m: any) => ({
       role: m.role,
       content: m.content,
     }));
-    // -----------------------------------------
 
-    const systemPrompt = `Kamu adalah KOPI AI, asisten virtual dari KOPILOKA.
+    // 2. OTAK CERDAS (SYSTEM PROMPT DINAMIS)
+    // Di sini kuncinya supaya dia tidak kaku.
+    const systemPrompt = `
+    Kamu adalah KOPI AI, teman ngopi virtual yang cerdas dan asik dari KOPILOKA.
     
-    Tugasmu:
-    1. Rekomendasi Kopi (Arabika/Robusta).
-    2. Edukasi cara seduh.
-    3. Arahkan belanja di KOPILOKA.
-    
-    Produk:
-    - Arabika Toraja (185rb), Robusta Lampung (85rb), Gayo Aceh (225rb).
-    
-    Gaya: Ramah, santai, pakai emoji ☕.`;
+    Kepribadianmu:
+    - Cerdas & Berwawasan: Kamu bisa menjawab pertanyaan apa saja (sejarah, tips, curhat), tidak cuma soal jualan.
+    - Santai & Humoris: Gunakan bahasa gaul yang sopan (lo/gue atau aku/kamu tergantung user), pakai emoji ☕✨.
+    - Empati: Kalau user curhat sedih, hibur mereka (tawarkan kopi hangat). Kalau senang, rayakan bersama.
+
+    Knowledge Base Produk KOPILOKA (Tawarkan ini secara natural hanya jika relevan):
+    - Arabika Toraja (185rb): Rasa buah, asam segar. Cocok buat yang suka rasa kompleks.
+    - Robusta Lampung (85rb): Pahit mantap, strong. Cocok buat begadang/kopi susu.
+    - Gayo Aceh (225rb): Kualitas terbaik, aroma rempah.
+
+    Aturan Jawab:
+    - Jangan kaku seperti robot. Jawablah layaknya barista sahabat user.
+    - Jika user tanya di luar topik kopi (misal: "Coding susah ya?"), jawablah dengan cerdas, lalu coba hubungkan tipis-tipis ke filosofi kopi (misal: "Coding emang butuh fokus, Bro. Sambil ngopi Robusta Lampung biar melek codingnya lancar!").
+    - Jawaban harus ringkas (maksimal 3 paragraf pendek).
+    `;
 
     const result = await generateText({
-      model: groq('llama-3.3-70b-versatile'), 
-      messages: cleanMessages, // GUNAKAN PESAN YANG SUDAH DIBERSIHKAN
+      model: groq('llama-3.3-70b-versatile'), // Model paling pintar di Groq
+      messages: cleanMessages,
       system: systemPrompt,
+      temperature: 0.7, // 0.7 artinya Kreatif tapi tetap nyambung (tidak ngelantur)
     });
 
     return Response.json({
@@ -56,10 +61,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error("[AI Error]:", error);
     return Response.json(
-      { 
-        error: "Gagal memproses permintaan AI", 
-        details: error.message 
-      },
+      { error: "Gagal memproses", details: error.message },
       { status: 500 }
     );
   }
