@@ -1,4 +1,4 @@
-import { google } from '@ai-sdk/google';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { generateText } from 'ai';
 
 export const maxDuration = 30;
@@ -7,7 +7,22 @@ export async function POST(req: Request) {
   try {
     const { messages } = await req.json();
 
-    // System prompt yang sama seperti sebelumnya
+    // 1. Ambil API Key dari environment variable Anda
+    const apiKey = process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
+      return Response.json(
+        { error: "API Key tidak ditemukan. Pastikan GEMINI_API_KEY ada di .env" },
+        { status: 500 }
+      );
+    }
+
+    // 2. Konfigurasi Google Provider dengan key yang benar
+    const google = createGoogleGenerativeAI({
+      apiKey: apiKey, 
+    });
+
+    // System prompt (sama seperti sebelumnya)
     const systemPrompt = `Kamu adalah KOPI AI, asisten virtual cerdas dari KOPILOKA - marketplace kopi Indonesia terbesar.
     
     Keahlianmu:
@@ -27,15 +42,13 @@ export async function POST(req: Request) {
     Gaya bahasa: Ramah, hangat, Bahasa Indonesia yang baik.
     Selalu rekomendasikan produk KOPILOKA jika relevan.`;
 
-    // Menggunakan 'generateText' dari Vercel AI SDK yang sudah terinstall
-    // Kita gunakan model 'gemini-1.5-flash' yang efisien
+    // 3. Generate text menggunakan provider yang sudah dikonfigurasi
     const result = await generateText({
-      model: google('gemini-1.5-flash'),
+      model: google('gemini-1.5-flash'), // Gunakan 'google' yang kita buat di atas
       messages: messages,
       system: systemPrompt,
     });
 
-    // Frontend mengharapkan JSON object, bukan stream
     return Response.json({
       content: result.text,
       role: "assistant",
