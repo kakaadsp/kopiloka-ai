@@ -8,49 +8,47 @@ export async function POST(req: Request) {
     const { messages } = await req.json();
 
     const apiKey = process.env.GROQ_API_KEY;
-
-    if (!apiKey) {
-      return Response.json({ error: "No API Key" }, { status: 500 });
-    }
+    if (!apiKey) return Response.json({ error: "No API Key" }, { status: 500 });
 
     const groq = createOpenAI({
       baseURL: 'https://api.groq.com/openai/v1',
       apiKey: apiKey,
     });
 
-    // 1. PEMBERSIHAN PESAN (Wajib buat Groq)
-    // Supaya dia ingat obrolan sebelumnya (Context Aware)
-    const cleanMessages = messages.map((m: any) => ({
-      role: m.role,
-      content: m.content,
-    }));
+    // --- TEKNIK DEEP CLEANING (PEMBERSIHAN TOTAL) ---
+    // Ini solusi untuk error di pertanyaan kedua.
+    // Kita pastikan formatnya disukai Groq (Role + Content String)
+    const cleanMessages = messages.map((m: any) => {
+      let textContent = m.content;
 
-    // 2. OTAK CERDAS (SYSTEM PROMPT DINAMIS)
-    // Di sini kuncinya supaya dia tidak kaku.
+      // Kadang Vercel SDK menyimpan content sebagai Array (bukan string).
+      // Kita harus ubah paksa jadi String biasa.
+      if (Array.isArray(m.content)) {
+        textContent = m.content
+          .map((c: any) => c.text || '') // Ambil properti .text saja
+          .join('');
+      }
+
+      // Paksa return hanya 2 field ini. Buang field lain seperti 'id', 'createdAt'.
+      return {
+        role: m.role, // user atau assistant
+        content: typeof textContent === 'string' ? textContent : String(textContent),
+      };
+    });
+    // -------------------------------------------------
+
     const systemPrompt = `
-    Kamu adalah KOPI AI, teman ngopi virtual yang cerdas dan asik dari KOPILOKA.
-    
-    Kepribadianmu:
-    - Cerdas & Berwawasan: Kamu bisa menjawab pertanyaan apa saja (sejarah, tips, curhat), tidak cuma soal jualan.
-    - Santai & Humoris: Gunakan bahasa gaul yang sopan (lo/gue atau aku/kamu tergantung user), pakai emoji ☕✨.
-    - Empati: Kalau user curhat sedih, hibur mereka (tawarkan kopi hangat). Kalau senang, rayakan bersama.
-
-    Knowledge Base Produk KOPILOKA (Tawarkan ini secara natural hanya jika relevan):
-    - Arabika Toraja (185rb): Rasa buah, asam segar. Cocok buat yang suka rasa kompleks.
-    - Robusta Lampung (85rb): Pahit mantap, strong. Cocok buat begadang/kopi susu.
-    - Gayo Aceh (225rb): Kualitas terbaik, aroma rempah.
-
-    Aturan Jawab:
-    - Jangan kaku seperti robot. Jawablah layaknya barista sahabat user.
-    - Jika user tanya di luar topik kopi (misal: "Coding susah ya?"), jawablah dengan cerdas, lalu coba hubungkan tipis-tipis ke filosofi kopi (misal: "Coding emang butuh fokus, Bro. Sambil ngopi Robusta Lampung biar melek codingnya lancar!").
-    - Jawaban harus ringkas (maksimal 3 paragraf pendek).
+    Kamu adalah KOPI AI, asisten virtual KOPILOKA.
+    Gaya bicara: Santai, ramah, gunakan emoji ☕.
+    Tugas: Jawab pertanyaan seputar kopi, rekomendasi produk, dan ngobrol santai.
+    Produk: Arabika Toraja (185rb), Robusta Lampung (85rb).
     `;
 
     const result = await generateText({
-      model: groq('llama-3.3-70b-versatile'), // Model paling pintar di Groq
-      messages: cleanMessages,
+      model: groq('llama-3.3-70b-versatile'),
+      messages: cleanMessages, // Gunakan pesan yang sudah "dicuci"
       system: systemPrompt,
-      temperature: 0.7, // 0.7 artinya Kreatif tapi tetap nyambung (tidak ngelantur)
+      temperature: 0.7,
     });
 
     return Response.json({
@@ -59,7 +57,7 @@ export async function POST(req: Request) {
     });
 
   } catch (error: any) {
-    console.error("[AI Error]:", error);
+    console.error("[Groq Error Detail]:", error);
     return Response.json(
       { error: "Gagal memproses", details: error.message },
       { status: 500 }
