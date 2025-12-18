@@ -44,7 +44,7 @@ export async function POST(req: Request) {
 
     // 3. Generate text menggunakan provider yang sudah dikonfigurasi
     const result = await generateText({
-      model: google('gemini-1.5-flash'), // Gunakan 'google' yang kita buat di atas
+      model: google('gemini-1.5-flash-001'), // Gunakan 'google' yang kita buat di atas
       messages: messages,
       system: systemPrompt,
     });
