@@ -1,7 +1,6 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import { generateText } from 'ai';
 
-// Set durasi timeout
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
@@ -16,54 +15,49 @@ export async function POST(req: Request) {
       apiKey: apiKey,
     });
 
-    // --- FILTER MILITER (PENYELAMAT CHAT KEDUA DAN SETERUSNYA) ---
-    // Kita tidak mempercayai struktur data dari frontend mentah-mentah.
-    // Kita buat array BARU yang benar-benar bersih.
+    // --- LOGIC BARU: HARD RESET ---
+    // Kita BIKIN ARRAY BARU. Kita gak nge-map array lama.
+    // Kita cuma ambil DUA hal: siapa yang ngomong (role) dan apa isinya (content).
+    // Sisanya kita buang ke laut.
     
-    const cleanMessages = messages.map((m: any) => {
-      // 1. Ambil Content (Hanya Teks)
-      let content = "";
+    const groqMessages = [];
+
+    for (const m of messages) {
+      // 1. Tentukan Role (Hanya terima user/assistant/system)
+      let role = 'user';
+      if (m.role === 'assistant') role = 'assistant';
+      if (m.role === 'system') role = 'system';
+
+      // 2. Ekstrak Content (Hanya String)
+      let content = '';
       
       if (typeof m.content === 'string') {
         content = m.content;
       } else if (Array.isArray(m.content)) {
-        // Kalau formatnya array (multimodal), ambil bagian text saja
+        // Kalau isinya array (gambar/file), ambil teksnya aja
+        // Abaikan object yang gak punya properti 'text'
         content = m.content
-          .filter((c: any) => c.type === 'text')
-          .map((c: any) => c.text)
-          .join('');
+          .map((c: any) => c?.text || '') 
+          .join(' ');
       }
 
-      // Pastikan content tidak kosong (Groq error kalau kosong)
-      if (!content || content.trim() === "") {
-        content = "."; // Isi titik sebagai placeholder
+      // Kalau content kosong (misal cuma gambar doang tanpa caption), kasih spasi
+      if (!content || content.trim().length === 0) {
+        content = ' '; 
       }
 
-      // 2. Ambil Role (Hanya user/assistant)
-      // Groq kadang error kalau ada role 'system' atau 'data' di tengah history
-      let role = 'user';
-      if (m.role === 'assistant') role = 'assistant';
-      // Jika role awalnya 'system', kita ubah jadi 'user' supaya masuk history tanpa error,
-      // atau bisa di-skip, tapi amannya kita jadikan user context saja.
-
-      // 3. RETUR (Hanya 2 field: role & content)
-      // JANGAN sertakan field lain seperti id, createdAt, dll.
-      return {
+      // 3. Masukkan ke array baru (Objek Baru Murni)
+      groqMessages.push({
         role: role,
         content: content
-      };
-    });
-    // ----------------------------------------------------------------
+      });
+    }
+    // ------------------------------------------
 
     const result = await generateText({
       model: groq('llama-3.3-70b-versatile'),
-      messages: cleanMessages, // Gunakan pesan yang sudah difilter militer
-      system: `
-        Kamu adalah KOPI AI, asisten KOPILOKA.
-        Karakter: Santai, lucu, suka emoji ☕.
-        Tugas: Jawab pertanyaan user. Kalau user nanya aneh-aneh, jawab santai aja.
-        Produk: Arabika Toraja, Robusta Lampung.
-      `,
+      messages: groqMessages, // PAKE ARRAY YANG BARU DIBIKIN
+      system: `Kamu KOPI AI dari KOPILOKA. Jawab santai tentang kopi.`,
     });
 
     return Response.json({
@@ -72,10 +66,7 @@ export async function POST(req: Request) {
     });
 
   } catch (error: any) {
-    console.error("[Groq Error]:", error);
-    return Response.json(
-      { error: "Error pada server", details: error.message },
-      { status: 500 }
-    );
+    console.error("GROQ ERROR:", error);
+    return Response.json({ error: error.message }, { status: 500 });
   }
 }
