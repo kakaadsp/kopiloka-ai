@@ -15,40 +15,45 @@ export async function POST(req: Request) {
       apiKey: apiKey,
     });
 
-    // --- TEKNIK DEEP CLEANING (PEMBERSIHAN TOTAL) ---
-    // Ini solusi untuk error di pertanyaan kedua.
-    // Kita pastikan formatnya disukai Groq (Role + Content String)
-    const cleanMessages = messages.map((m: any) => {
-      let textContent = m.content;
+    // --- TAHAP 1: PEMBERSIHAN SUPER KETAT ---
+    // Groq benci metadata. Kita bikin array baru yang benar-benar bersih.
+    const cleanMessages = messages
+      // 1. Hanya ambil pesan dari 'user' atau 'assistant'. Buang system/tool/data.
+      .filter((m: any) => m.role === 'user' || m.role === 'assistant')
+      // 2. Format ulang isinya jadi string polos
+      .map((m: any) => {
+        let contentStr = '';
 
-      // Kadang Vercel SDK menyimpan content sebagai Array (bukan string).
-      // Kita harus ubah paksa jadi String biasa.
-      if (Array.isArray(m.content)) {
-        textContent = m.content
-          .map((c: any) => c.text || '') // Ambil properti .text saja
-          .join('');
-      }
+        if (typeof m.content === 'string') {
+          contentStr = m.content;
+        } else if (Array.isArray(m.content)) {
+          // Kalau formatnya Array (multimodal), ambil teksnya saja
+          contentStr = m.content
+            .filter((c: any) => c.type === 'text')
+            .map((c: any) => c.text)
+            .join(' ');
+        }
 
-      // Paksa return hanya 2 field ini. Buang field lain seperti 'id', 'createdAt'.
-      return {
-        role: m.role, // user atau assistant
-        content: typeof textContent === 'string' ? textContent : String(textContent),
-      };
-    });
-    // -------------------------------------------------
+        return {
+          role: m.role,
+          content: contentStr || ' ', // Jangan biarkan kosong total
+        };
+      });
 
+    // --- TAHAP 2: OTAK AI ---
     const systemPrompt = `
-    Kamu adalah KOPI AI, asisten virtual KOPILOKA.
-    Gaya bicara: Santai, ramah, gunakan emoji ☕.
-    Tugas: Jawab pertanyaan seputar kopi, rekomendasi produk, dan ngobrol santai.
-    Produk: Arabika Toraja (185rb), Robusta Lampung (85rb).
+    Kamu adalah KOPI AI, sahabat ngopi dari KOPILOKA.
+    Karakter: Santai, ramah, suka emoji ☕.
+    Tugas: Jawab pertanyaan user. Jika melenceng, belokkan halus ke topik kopi.
+    Produk: Arabika Toraja (185rb), Robusta Lampung (85rb), Gayo Aceh (225rb).
+    Jawab ringkas saja.
     `;
 
     const result = await generateText({
       model: groq('llama-3.3-70b-versatile'),
-      messages: cleanMessages, // Gunakan pesan yang sudah "dicuci"
+      messages: cleanMessages, // Pakai pesan yang sudah dicuci bersih
       system: systemPrompt,
-      temperature: 0.7,
+      // temperature: 0.7, <-- KITA HAPUS INI karena bikin warning di Groq
     });
 
     return Response.json({
