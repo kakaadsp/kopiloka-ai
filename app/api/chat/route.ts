@@ -21,6 +21,15 @@ export async function POST(req: Request) {
       apiKey: apiKey,
     });
 
+    // --- BAGIAN PENTING: PEMBERSIHAN PESAN ---
+    // Kita buang field 'id', 'createdAt', dll. Ambil cuma role & content.
+    // Ini solusi untuk error "unsupported content fields".
+    const cleanMessages = messages.map((m: any) => ({
+      role: m.role,
+      content: m.content,
+    }));
+    // -----------------------------------------
+
     const systemPrompt = `Kamu adalah KOPI AI, asisten virtual dari KOPILOKA.
     
     Tugasmu:
@@ -33,11 +42,9 @@ export async function POST(req: Request) {
     
     Gaya: Ramah, santai, pakai emoji ☕.`;
 
-    // UPDATE PENTING DI SINI:
-    // Ganti 'llama3-8b-8192' (mati) menjadi 'llama-3.3-70b-versatile' (hidup & canggih)
     const result = await generateText({
       model: groq('llama-3.3-70b-versatile'), 
-      messages: messages,
+      messages: cleanMessages, // GUNAKAN PESAN YANG SUDAH DIBERSIHKAN
       system: systemPrompt,
     });
 
