@@ -1,5 +1,5 @@
 import { createOpenAI } from '@ai-sdk/openai';
-import { generateText } from 'ai';
+import { generateText, convertToCoreMessages } from 'ai'; // <--- TAMBAHAN PENTING
 
 export const maxDuration = 30;
 
@@ -15,45 +15,21 @@ export async function POST(req: Request) {
       apiKey: apiKey,
     });
 
-    // --- TAHAP 1: PEMBERSIHAN SUPER KETAT ---
-    // Groq benci metadata. Kita bikin array baru yang benar-benar bersih.
-    const cleanMessages = messages
-      // 1. Hanya ambil pesan dari 'user' atau 'assistant'. Buang system/tool/data.
-      .filter((m: any) => m.role === 'user' || m.role === 'assistant')
-      // 2. Format ulang isinya jadi string polos
-      .map((m: any) => {
-        let contentStr = '';
-
-        if (typeof m.content === 'string') {
-          contentStr = m.content;
-        } else if (Array.isArray(m.content)) {
-          // Kalau formatnya Array (multimodal), ambil teksnya saja
-          contentStr = m.content
-            .filter((c: any) => c.type === 'text')
-            .map((c: any) => c.text)
-            .join(' ');
-        }
-
-        return {
-          role: m.role,
-          content: contentStr || ' ', // Jangan biarkan kosong total
-        };
-      });
-
-    // --- TAHAP 2: OTAK AI ---
-    const systemPrompt = `
-    Kamu adalah KOPI AI, sahabat ngopi dari KOPILOKA.
-    Karakter: Santai, ramah, suka emoji ☕.
-    Tugas: Jawab pertanyaan user. Jika melenceng, belokkan halus ke topik kopi.
-    Produk: Arabika Toraja (185rb), Robusta Lampung (85rb), Gayo Aceh (225rb).
-    Jawab ringkas saja.
-    `;
+    // --- SOLUSI RESMI V5 ---
+    // Jangan diparsing/map manual. Gunakan function bawaan library
+    // untuk mengubah pesan Frontend menjadi format standar Backend.
+    const coreMessages = convertToCoreMessages(messages);
 
     const result = await generateText({
       model: groq('llama-3.3-70b-versatile'),
-      messages: cleanMessages, // Pakai pesan yang sudah dicuci bersih
-      system: systemPrompt,
-      // temperature: 0.7, <-- KITA HAPUS INI karena bikin warning di Groq
+      messages: coreMessages, // <--- Pakai yang sudah diconvert
+      system: `
+        Kamu adalah KOPI AI, asisten virtual KOPILOKA.
+        Gaya: Santai, ramah, to-the-point, pakai emoji ☕.
+        Tugas: Bantu user cari kopi & rekomendasi produk.
+        Produk: Arabika Toraja (185rb), Robusta Lampung (85rb), Gayo Aceh (225rb).
+        PENTING: Jawab hanya dengan teks, jangan pakai markdown tebal/miring berlebihan.
+      `,
     });
 
     return Response.json({
